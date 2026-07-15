@@ -27,7 +27,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterVariableString('CurrentPhase', 'Aktuelle Phase', '', 2);
         IPS_SetIcon($this->GetIDForIdent('CurrentPhase'), 'Script');
 
-        $this->RegisterVariableInteger('ActiveSince', 'Aktiv Seit', '~UnixTimestamp', 3);
+        $this->RegisterVariableInteger('ActiveSince', 'Aktiv Seit', '', 3);
         IPS_SetIcon($this->GetIDForIdent('ActiveSince'), 'Clock');
 
         // Modus: Manuell zurücksetzen auf "Aus"
@@ -49,6 +49,11 @@ class ImperialDishwasherAI extends IPSModuleStrict {
             $this->RegisterReference($powerVarID);
             $this->RegisterMessage($powerVarID, VM_UPDATE);
         }
+        // Custom Presentation (IPS 8) für Datumsanzeige
+        IPS_SetVariableCustomPresentation($this->GetIDForIdent('ActiveSince'), [
+            'PRESENTATION'=> VARIABLE_PRESENTATION_DATE_TIME,
+            'ICON'=> 'Clock'
+        ]);
         
         $this->MaintainTimer();
     }
