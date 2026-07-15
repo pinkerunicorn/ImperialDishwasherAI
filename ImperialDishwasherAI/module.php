@@ -30,6 +30,12 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterVariableInteger('ActiveSince', 'Aktiv Seit', '', 3);
         IPS_SetIcon($this->GetIDForIdent('ActiveSince'), 'Clock');
 
+        $this->RegisterVariableString('LastGeminiPrompt', 'Letzter KI Prompt', '', 4);
+        IPS_SetIcon($this->GetIDForIdent('LastGeminiPrompt'), 'Information');
+
+        $this->RegisterVariableString('LastGeminiResponse', 'Letzte KI Antwort', '', 5);
+        IPS_SetIcon($this->GetIDForIdent('LastGeminiResponse'), 'Information');
+
         // Modus: Manuell zurücksetzen auf "Aus"
         $this->EnableAction('Status');
 
@@ -192,6 +198,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         ];
 
         $jsonPayload = json_encode($payload);
+        $this->SetValue('LastGeminiPrompt', $userPrompt);
 
         $script = '<?php
             $ch = curl_init("' . $url . '");
@@ -210,6 +217,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
     }
 
     public function ProcessGeminiResponse(string $result, int $httpCode): void {
+        $this->SetValue('LastGeminiResponse', $result);
         if ($httpCode === 200 && $result) {
             $data = json_decode($result, true);
             if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
