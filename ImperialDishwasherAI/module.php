@@ -13,7 +13,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterPropertyInteger('AnalysisInterval', 10); // in Minuten
 
         // Variablen
-        $this->RegisterVariableInteger('Status', 'Status', '', 1);
+        $this->RegisterVariableInteger('Status', 'Status', 'IDW.Status', 1);
         IPS_SetIcon($this->GetIDForIdent('Status'), 'Information');
 
         $this->RegisterVariableString('CurrentPhase', 'Aktuelle Phase', '', 2);
@@ -56,15 +56,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
             $this->RegisterReference($powerVarID);
             $this->RegisterMessage($powerVarID, VM_UPDATE);
         }
-        // Custom Presentation (IPS 8) für Datumsanzeige und Status
-        IPS_SetVariableCustomPresentation($this->GetIDForIdent('Status'), [
-            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION,
-            'ASSOCIATIONS' => [
-                ['VALUE' => 0, 'NAME' => 'Aus', 'ICON' => 'Sleep', 'COLOR' => 0x999999],
-                ['VALUE' => 1, 'NAME' => 'Aktiv', 'ICON' => 'Gear', 'COLOR' => 0x00FF00],
-                ['VALUE' => 2, 'NAME' => 'Fertig', 'ICON' => 'Ok', 'COLOR' => 0x0000FF]
-            ]
-        ]);
+        // Custom Presentation (IPS 8) für Datumsanzeige
         IPS_SetVariableCustomPresentation($this->GetIDForIdent('ActiveSince'), [
             'PRESENTATION'=> VARIABLE_PRESENTATION_DATE_TIME,
             'ICON'=> 'Clock'

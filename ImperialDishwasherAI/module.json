@@ -11,5 +11,17 @@
     "childRequirements": [],
     "implemented": [],
     "prefix": "IDW",
-    "url": "https://github.com/pinkerunicorn/ImperialDishwasherAI"
+    "url": "https://github.com/pinkerunicorn/ImperialDishwasherAI",
+    "profiles": [
+        {
+            "name": "IDW.Status",
+            "type": 1,
+            "icon": "Information",
+            "associations": [
+                [0, "Aus", "Sleep", 0x999999],
+                [1, "Aktiv", "Gear", 0x00FF00],
+                [2, "Fertig", "Ok", 0x0000FF]
+            ]
+        }
+    ]
 }
