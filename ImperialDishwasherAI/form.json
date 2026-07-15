@@ -1,0 +1,60 @@
+{
+    "elements": [
+        {
+            "type": "ExpansionPanel",
+            "caption": "Gemini AI Konfiguration",
+            "items": [
+                {
+                    "type": "RowLayout",
+                    "items": [
+                        {
+                            "type": "ValidationTextBox",
+                            "name": "GeminiApiKey",
+                            "caption": "Gemini API-Schlüssel"
+                        },
+                        {
+                            "type": "Select",
+                            "name": "GeminiModel",
+                            "caption": "Gemini Modell",
+                            "options": [
+                                {
+                                    "caption": "Gemini 3.5 Flash",
+                                    "value": "gemini-3.5-flash"
+                                },
+                                {
+                                    "caption": "Gemini 2.5 Flash",
+                                    "value": "gemini-2.5-flash"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "AnalysisInterval",
+                    "caption": "Analyse Intervall (in Minuten)",
+                    "minimum": 1,
+                    "maximum": 60
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Hardware Anbindung",
+            "items": [
+                {
+                    "type": "SelectVariable",
+                    "name": "PowerVariableID",
+                    "caption": "Leistung (Watt) Variable (HmIP-PSM)"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Jetzt Analyse triggern",
+            "onClick": "IDW_AnalyzeData($id);"
+        }
+    ]
+}

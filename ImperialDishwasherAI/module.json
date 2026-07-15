@@ -1,0 +1,14 @@
+{
+    "id": "{F38C9B0A-5D2E-4A6B-9B2D-0E9F8A7B6C5D}",
+    "name": "ImperialDishwasherAI",
+    "type": 3,
+    "vendor": "Imperial",
+    "aliases": [
+        "SmartDishwasherAI",
+        "Geschirrspüler"
+    ],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "IDW"
+}
