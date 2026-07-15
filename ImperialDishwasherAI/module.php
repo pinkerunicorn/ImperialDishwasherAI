@@ -36,6 +36,15 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterVariableString('LastGeminiResponse', 'Letzte KI Antwort', '', 5);
         IPS_SetIcon($this->GetIDForIdent('LastGeminiResponse'), 'Information');
 
+        $this->RegisterVariableInteger('RemainingTime', 'Restlaufzeit', '', 6);
+        IPS_SetIcon($this->GetIDForIdent('RemainingTime'), 'Clock');
+
+        $this->RegisterVariableInteger('ExpectedEnd', 'Erwartetes Ende', '', 7);
+        IPS_SetIcon($this->GetIDForIdent('ExpectedEnd'), 'Clock');
+
+        $this->RegisterVariableInteger('Progress', 'Fortschritt', '', 8);
+        IPS_SetIcon($this->GetIDForIdent('Progress'), 'Motion');
+
 
         // Timer
         $this->RegisterTimer('DataCollectorTimer', 0, 'IDW_CollectData($_IPS[\'TARGET\']);');
@@ -60,6 +69,20 @@ class ImperialDishwasherAI extends IPSModuleStrict {
             'PRESENTATION'=> VARIABLE_PRESENTATION_DATE_TIME,
             'ICON'=> 'Clock'
         ]);
+        IPS_SetVariableCustomPresentation($this->GetIDForIdent('ExpectedEnd'), [
+            'PRESENTATION'=> VARIABLE_PRESENTATION_DATE_TIME,
+            'ICON'=> 'Clock'
+        ]);
+        IPS_SetVariableCustomPresentation($this->GetIDForIdent('RemainingTime'), [
+            'PRESENTATION'=> VARIABLE_PRESENTATION_VALUE_PRESENTATION,
+            'SUFFIX'=> ' Sek'
+        ]);
+        IPS_SetVariableCustomPresentation($this->GetIDForIdent('Progress'), [
+            'PRESENTATION'=> VARIABLE_PRESENTATION_SLIDER,
+            'SUFFIX'=> '%',
+            'MIN'=> 0,
+            'MAX'=> 100
+        ]);
         
         $this->MaintainTimer();
     }
@@ -70,6 +93,9 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 // Manuell auf Aus setzen, beendet den aktuellen Durchlauf
                 $this->SetValue('Status', 0);
                 $this->SetValue('CurrentPhase', 'Aus');
+                $this->SetValue('RemainingTime', 0);
+                $this->SetValue('ExpectedEnd', 0);
+                $this->SetValue('Progress', 0);
                 $this->SetBuffer('SessionData', '[]');
                 $this->MaintainTimer();
             } else {
@@ -91,6 +117,9 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                     $this->SetValue('Status', 1); // Aktiv
                     $this->SetValue('ActiveSince', time());
                     $this->SetValue('CurrentPhase', 'Gestartet');
+                    $this->SetValue('RemainingTime', 0);
+                    $this->SetValue('ExpectedEnd', 0);
+                    $this->SetValue('Progress', 0);
                     $this->SetBuffer('SessionData', '[]');
                     IPS_LogMessage('ImperialDishwasherAI', 'Spülmaschine hat gestartet.');
                     $this->MaintainTimer();
@@ -157,8 +186,9 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $userPrompt .= "1. Analysiere die Kurve. Aufheizen benötigt typischerweise viel Strom (über 1000W), Abpumpen oder Einweichen sehr wenig oder gar keinen Strom.\n";
         $userPrompt .= "2. Bestimme die aktuelle Phase des Spülvorgangs (z.B. 'Aufheizen', 'Hauptwäsche', 'Trocknen', 'Abpumpen', 'Fertig').\n";
         $userPrompt .= "3. Entscheide, ob das Programm komplett durchgelaufen und fertig ist (isFinished: true).\n";
+        $userPrompt .= "4. Schätze die verbleibende Restlaufzeit in Minuten (remainingMinutes). Wenn fertig, setze auf 0.\n";
         $userPrompt .= "Bitte gib die Antwort als folgendes JSON-Objekt zurück:\n";
-        $userPrompt .= "{\n  \"phase\": \"Name der Phase\",\n  \"isFinished\": true/false\n}";
+        $userPrompt .= "{\n  \"phase\": \"Name der Phase\",\n  \"isFinished\": true/false,\n  \"remainingMinutes\": Zahl\n}";
 
         $url = "https://generativelanguage.googleapis.com/v1beta/models/" . $model . ":generateContent?key=" . $apiKey;
         $responseSchema = [
@@ -171,9 +201,13 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 'isFinished' => [
                     'type' => 'BOOLEAN',
                     'description' => 'True wenn der Vorgang komplett abgeschlossen ist'
+                ],
+                'remainingMinutes' => [
+                    'type' => 'INTEGER',
+                    'description' => 'Geschätzte Restlaufzeit in Minuten'
                 ]
             ],
-            'required' => ['phase', 'isFinished']
+            'required' => ['phase', 'isFinished', 'remainingMinutes']
         ];
 
         $payload = [
@@ -226,6 +260,28 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 if (is_array($parsed) && isset($parsed['phase'])) {
                     
                     $this->SetValue('CurrentPhase', $parsed['phase']);
+                    
+                    if (isset($parsed['remainingMinutes'])) {
+                        $remMin = (int)$parsed['remainingMinutes'];
+                        $remSec = $remMin * 60;
+                        $this->SetValue('RemainingTime', $remSec);
+                        
+                        if ($remSec > 0) {
+                            $expectedEnd = time() + $remSec;
+                            $this->SetValue('ExpectedEnd', $expectedEnd);
+                            
+                            $activeSince = $this->GetValue('ActiveSince');
+                            $total = $expectedEnd - $activeSince;
+                            if ($total > 0) {
+                                $progress = (int)(((time() - $activeSince) / $total) * 100);
+                                $progress = min(100, max(0, $progress));
+                                $this->SetValue('Progress', $progress);
+                            }
+                        } else {
+                            $this->SetValue('Progress', 100);
+                            $this->SetValue('ExpectedEnd', time());
+                        }
+                    }
                     
                     if (isset($parsed['isFinished']) && $parsed['isFinished'] == true) {
                         $this->SetValue('Status', 2); // Fertig
