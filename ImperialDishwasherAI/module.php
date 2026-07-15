@@ -50,8 +50,8 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterTimer('DataCollectorTimer', 0, 'IDW_CollectData($_IPS[\'TARGET\']);');
         $this->RegisterTimer('AnalysisTimer', 0, 'IDW_AnalyzeData($_IPS[\'TARGET\']);');
 
-        // Puffer für Stromdaten
-        $this->SetBuffer('SessionData', '[]');
+        $this->RegisterVariableString('SessionData', 'Session Data (Intern)', '', 99);
+        IPS_SetHidden($this->GetIDForIdent('SessionData'), true);
     }
 
     public function ApplyChanges(): void {
@@ -96,7 +96,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 $this->SetValue('RemainingTime', 0);
                 $this->SetValue('ExpectedEnd', 0);
                 $this->SetValue('Progress', 0);
-                $this->SetBuffer('SessionData', '[]');
+                $this->SetValue('SessionData', '[]');
                 $this->MaintainTimer();
             } else {
                 $this->SetValue('Status', $Value);
@@ -120,7 +120,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                     $this->SetValue('RemainingTime', 0);
                     $this->SetValue('ExpectedEnd', 0);
                     $this->SetValue('Progress', 0);
-                    $this->SetBuffer('SessionData', '[]');
+                    $this->SetValue('SessionData', '[]');
                     IPS_LogMessage('ImperialDishwasherAI', 'Spülmaschine hat gestartet.');
                     $this->MaintainTimer();
                 }
@@ -146,12 +146,12 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         
         $power = GetValue($powerVarID);
         
-        $sessionDataStr = $this->GetBuffer('SessionData');
+        $sessionDataStr = $this->GetValue('SessionData');
         $sessionData = json_decode($sessionDataStr, true);
         if (!is_array($sessionData)) $sessionData = [];
         
         $sessionData[] = $power;
-        $this->SetBuffer('SessionData', json_encode($sessionData));
+        $this->SetValue('SessionData', json_encode($sessionData));
     }
 
     public function AnalyzeData(): void {
@@ -163,7 +163,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
             return;
         }
 
-        $sessionDataStr = $this->GetBuffer('SessionData');
+        $sessionDataStr = $this->GetValue('SessionData');
         $sessionData = json_decode($sessionDataStr, true);
         if (!is_array($sessionData) || count($sessionData) == 0) {
             return; // Keine Daten
