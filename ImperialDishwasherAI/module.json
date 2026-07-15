@@ -18,9 +18,9 @@
             "type": 1,
             "icon": "Information",
             "associations": [
-                [0, "Aus", "Sleep", 0x999999],
-                [1, "Aktiv", "Gear", 0x00FF00],
-                [2, "Fertig", "Ok", 0x0000FF]
+                [0, "Aus", "Sleep", 10066329],
+                [1, "Aktiv", "Gear", 65280],
+                [2, "Fertig", "Ok", 255]
             ]
         }
     ]
