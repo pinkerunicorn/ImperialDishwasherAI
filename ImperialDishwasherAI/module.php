@@ -11,6 +11,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterPropertyString('GeminiApiKey', '');
         $this->RegisterPropertyString('GeminiModel', 'gemini-3.5-flash');
         $this->RegisterPropertyInteger('AnalysisInterval', 10); // in Minuten
+        $this->RegisterPropertyFloat('StartThreshold', 2.0); // Ab wie viel Watt das Programm als gestartet gilt
 
         // Variablen
         $vid = @$this->GetIDForIdent('Status');
@@ -111,8 +112,9 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 $power = $Data[0];
                 $status = $this->GetValue('Status');
                 
-                // Wenn Strom > 0.5W und Maschine war aus, starte den Vorgang
-                if ($power > 0.5 && ($status === 'Aus' || $status === '')) {
+                // Wenn Strom > Threshold und Maschine war aus, starte den Vorgang
+                $threshold = $this->ReadPropertyFloat('StartThreshold');
+                if ($power > $threshold && ($status === 'Aus' || $status === '')) {
                     $this->SetValue('Status', 'Aktiv'); // Aktiv
                     $this->SetValue('ActiveSince', time());
                     $this->SetValue('CurrentPhase', 'Gestartet');
@@ -192,10 +194,16 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         
         $userPrompt .= "Die Daten des AKTUELLEN Programms wurden im Minutentakt seit dem Start aufgezeichnet:\n";
         $userPrompt .= "[" . $dataString . "]\n\n";
+        
+        $threshold = $this->ReadPropertyFloat('StartThreshold');
+        $userPrompt .= "WICHTIGER HINWEIS ZUM STANDBY:\n";
+        $userPrompt .= "Werte unter " . $threshold . "W (z.B. 1.25W) sind lediglich der Standby-Verbrauch der ausgeschalteten Maschine.\n";
+        $userPrompt .= "Wenn die Leistung am Ende der Kurve längere Zeit auf diesem Standby-Niveau bleibt, ist das Programm definitiv komplett durchgelaufen.\n\n";
+        
         $userPrompt .= "Deine Aufgabe:\n";
-        $userPrompt .= "1. Analysiere die Kurve. Aufheizen benötigt typischerweise viel Strom (über 1000W), Abpumpen oder Einweichen sehr wenig oder gar keinen Strom.\n";
+        $userPrompt .= "1. Analysiere die Kurve. Aufheizen benötigt typischerweise viel Strom (über 1000W), Abpumpen oder Einweichen sehr wenig (aber meist über Standby).\n";
         $userPrompt .= "2. Bestimme die aktuelle Phase des Spülvorgangs (z.B. 'Aufheizen', 'Hauptwäsche', 'Trocknen', 'Abpumpen', 'Fertig').\n";
-        $userPrompt .= "3. Entscheide, ob das Programm komplett durchgelaufen und fertig ist (isFinished: true).\n";
+        $userPrompt .= "3. Entscheide, ob das Programm komplett durchgelaufen und fertig ist (isFinished: true). Ein dauerhafter Abfall auf den Standby-Verbrauch markiert das Ende.\n";
         $userPrompt .= "4. Schätze die verbleibende Restlaufzeit in Minuten (remainingMinutes). Wenn fertig, setze auf 0.\n";
         $userPrompt .= "Bitte gib die Antwort als folgendes JSON-Objekt zurück:\n";
         $userPrompt .= "{\n  \"phase\": \"Name der Phase\",\n  \"isFinished\": true/false,\n  \"remainingMinutes\": Zahl\n}";
