@@ -48,6 +48,9 @@ class ImperialDishwasherAI extends IPSModuleStrict {
 
         $this->RegisterVariableString('SessionData', 'Session Data (Intern)', '', 99);
         IPS_SetHidden($this->GetIDForIdent('SessionData'), true);
+
+        $this->RegisterVariableString('LastSessionData', 'Letzte Session Data (Intern)', '', 100);
+        IPS_SetHidden($this->GetIDForIdent('LastSessionData'), true);
     }
 
     public function ApplyChanges(): void {
@@ -176,7 +179,18 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         
         $userPrompt = "Du bist eine KI zur Analyse des Stromverbrauchs von Haushaltsgeräten.\n";
         $userPrompt .= "Dies ist der Stromverbrauch (in Watt) einer Imperial GSI 8265 BS Spülmaschine.\n";
-        $userPrompt .= "Die Daten wurden im Minutentakt seit dem Start des Programms aufgezeichnet:\n";
+        
+        $lastSessionDataStr = $this->GetValue('LastSessionData');
+        $lastSessionData = json_decode($lastSessionDataStr, true);
+        if (is_array($lastSessionData) && count($lastSessionData) > 0) {
+            $lastDuration = count($lastSessionData);
+            $lastDataString = implode(', ', $lastSessionData);
+            $userPrompt .= "Als Referenz: Hier ist der komplette Stromverlauf (in Watt) des zuletzt durchgelaufenen Waschvorgangs (dieser dauerte insgesamt " . $lastDuration . " Minuten):\n";
+            $userPrompt .= "[" . $lastDataString . "]\n\n";
+            $userPrompt .= "Nutze diese Referenzkurve, um besser abzuschätzen, in welcher Phase sich das aktuelle Programm befindet und wie viele Minuten es noch bis zum Ende dauert, da meistens das gleiche Programm verwendet wird.\n\n";
+        }
+        
+        $userPrompt .= "Die Daten des AKTUELLEN Programms wurden im Minutentakt seit dem Start aufgezeichnet:\n";
         $userPrompt .= "[" . $dataString . "]\n\n";
         $userPrompt .= "Deine Aufgabe:\n";
         $userPrompt .= "1. Analysiere die Kurve. Aufheizen benötigt typischerweise viel Strom (über 1000W), Abpumpen oder Einweichen sehr wenig oder gar keinen Strom.\n";
@@ -281,6 +295,11 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                     
                     if (isset($parsed['isFinished']) && $parsed['isFinished'] == true) {
                         $this->SetValue('Status', 'Fertig'); // Fertig
+                        
+                        // Speichere die komplette Kurve für den nächsten Durchlauf
+                        $currentSession = $this->GetValue('SessionData');
+                        $this->SetValue('LastSessionData', $currentSession);
+                        
                         $this->MaintainTimer();
                         IPS_LogMessage('ImperialDishwasherAI', 'Gemini meldet: Spülmaschine ist fertig.');
                     } else {
