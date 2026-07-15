@@ -58,6 +58,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         }
         // Custom Presentation (IPS 8) für Datumsanzeige und Status
         IPS_SetVariableCustomPresentation($this->GetIDForIdent('Status'), [
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION,
             'ASSOCIATIONS' => [
                 ['VALUE' => 0, 'NAME' => 'Aus', 'ICON' => 'Sleep', 'COLOR' => 0x999999],
                 ['VALUE' => 1, 'NAME' => 'Aktiv', 'ICON' => 'Gear', 'COLOR' => 0x00FF00],
