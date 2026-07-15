@@ -13,7 +13,11 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterPropertyInteger('AnalysisInterval', 10); // in Minuten
 
         // Variablen
-        $this->RegisterVariableInteger('Status', 'Status', 'IDW.Status', 1);
+        $vid = @$this->GetIDForIdent('Status');
+        if ($vid && IPS_GetVariable($vid)['VariableType'] !== 3) {
+            $this->UnregisterVariable('Status');
+        }
+        $this->RegisterVariableString('Status', 'Status', '', 1);
         IPS_SetIcon($this->GetIDForIdent('Status'), 'Information');
 
         $this->RegisterVariableString('CurrentPhase', 'Aktuelle Phase', '', 2);
@@ -81,9 +85,9 @@ class ImperialDishwasherAI extends IPSModuleStrict {
 
     public function RequestAction(string $Ident, $Value): void {
         if ($Ident === 'Status') {
-            if ($Value == 0) {
+            if ($Value === 'Aus') {
                 // Manuell auf Aus setzen, beendet den aktuellen Durchlauf
-                $this->SetValue('Status', 0);
+                $this->SetValue('Status', 'Aus');
                 $this->SetValue('CurrentPhase', 'Aus');
                 $this->SetValue('RemainingTime', 0);
                 $this->SetValue('ExpectedEnd', 0);
@@ -105,8 +109,8 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 $status = $this->GetValue('Status');
                 
                 // Wenn Strom > 0.5W und Maschine war aus, starte den Vorgang
-                if ($power > 0.5 && $status == 0) {
-                    $this->SetValue('Status', 1); // Aktiv
+                if ($power > 0.5 && ($status === 'Aus' || $status === '')) {
+                    $this->SetValue('Status', 'Aktiv'); // Aktiv
                     $this->SetValue('ActiveSince', time());
                     $this->SetValue('CurrentPhase', 'Gestartet');
                     $this->SetValue('RemainingTime', 0);
@@ -122,7 +126,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
 
     private function MaintainTimer(): void {
         $status = $this->GetValue('Status');
-        if ($status == 1) { // Aktiv
+        if ($status === 'Aktiv') { // Aktiv
             $this->SetTimerInterval('DataCollectorTimer', 60000); // Jede Minute
             $interval = $this->ReadPropertyInteger('AnalysisInterval');
             $this->SetTimerInterval('AnalysisTimer', $interval * 60000);
@@ -276,7 +280,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                     }
                     
                     if (isset($parsed['isFinished']) && $parsed['isFinished'] == true) {
-                        $this->SetValue('Status', 2); // Fertig
+                        $this->SetValue('Status', 'Fertig'); // Fertig
                         $this->MaintainTimer();
                         IPS_LogMessage('ImperialDishwasherAI', 'Gemini meldet: Spülmaschine ist fertig.');
                     } else {
