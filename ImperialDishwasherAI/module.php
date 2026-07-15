@@ -36,8 +36,6 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterVariableString('LastGeminiResponse', 'Letzte KI Antwort', '', 5);
         IPS_SetIcon($this->GetIDForIdent('LastGeminiResponse'), 'Information');
 
-        // Modus: Manuell zurücksetzen auf "Aus"
-        $this->EnableAction('Status');
 
         // Timer
         $this->RegisterTimer('DataCollectorTimer', 0, 'IDW_CollectData($_IPS[\'TARGET\']);');
@@ -49,6 +47,8 @@ class ImperialDishwasherAI extends IPSModuleStrict {
 
     public function ApplyChanges(): void {
         parent::ApplyChanges();
+        
+        $this->DisableAction('Status');
 
         $powerVarID = $this->ReadPropertyInteger('PowerVariableID');
         if ($powerVarID > 1 && @IPS_ObjectExists($powerVarID)) {
