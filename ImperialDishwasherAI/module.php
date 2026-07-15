@@ -50,12 +50,6 @@ class ImperialDishwasherAI extends IPSModuleStrict {
             $this->RegisterMessage($powerVarID, VM_UPDATE);
         }
         
-        // Custom Presentation (IPS 8) - Aktionen für Status
-        IPS_SetVariableCustomPresentation($this->GetIDForIdent('Status'), [
-            'PRESENTATION'=> VARIABLE_PRESENTATION_SWITCH,
-            'ICON'=> 'Information'
-        ]);
-        
         $this->MaintainTimer();
     }
 
