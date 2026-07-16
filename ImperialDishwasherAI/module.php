@@ -303,6 +303,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                     
                     if (isset($parsed['isFinished']) && $parsed['isFinished'] == true) {
                         $this->SetValue('Status', 'Fertig'); // Fertig
+                        $this->SetValue('Progress', 0);
                         
                         // Speichere die komplette Kurve für den nächsten Durchlauf
                         $currentSession = $this->GetValue('SessionData');
