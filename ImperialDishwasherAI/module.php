@@ -114,7 +114,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 
                 // Wenn Strom > Threshold und Maschine war aus, starte den Vorgang
                 $threshold = $this->ReadPropertyFloat('StartThreshold');
-                if ($power > $threshold && ($status === 'Aus' || $status === '')) {
+                if ($power > $threshold && ($status === 'Aus' || $status === '' || $status === 'Fertig')) {
                     $this->SetValue('Status', 'Start'); // Start
                     $this->SetValue('ActiveSince', time());
                     $this->SetValue('CurrentPhase', 'Gestartet');
