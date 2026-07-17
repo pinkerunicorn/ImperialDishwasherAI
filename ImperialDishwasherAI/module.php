@@ -145,7 +145,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $powerVarID = $this->ReadPropertyInteger('PowerVariableID');
         if ($powerVarID == 0 || !IPS_VariableExists($powerVarID)) return;
         
-        $power = GetValue($powerVarID);
+        $power = round(GetValue($powerVarID));
         
         $sessionDataStr = $this->GetValue('SessionData');
         $sessionData = json_decode($sessionDataStr, true);
