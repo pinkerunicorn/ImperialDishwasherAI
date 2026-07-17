@@ -11,7 +11,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterPropertyString('GeminiApiKey', '');
         $this->RegisterPropertyString('GeminiModel', 'gemini-3.5-flash');
         $this->RegisterPropertyInteger('AnalysisInterval', 10); // in Minuten
-        $this->RegisterPropertyFloat('StartThreshold', 2.0); // Ab wie viel Watt das Programm als gestartet gilt
+        $this->RegisterPropertyFloat('StartThreshold', 100.0); // Ab wie viel Watt das Programm als gestartet gilt
 
         // Variablen
         $vid = @$this->GetIDForIdent('Status');
@@ -115,7 +115,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 // Wenn Strom > Threshold und Maschine war aus, starte den Vorgang
                 $threshold = $this->ReadPropertyFloat('StartThreshold');
                 if ($power > $threshold && ($status === 'Aus' || $status === '')) {
-                    $this->SetValue('Status', 'Aktiv'); // Aktiv
+                    $this->SetValue('Status', 'Start'); // Start
                     $this->SetValue('ActiveSince', time());
                     $this->SetValue('CurrentPhase', 'Gestartet');
                     $this->SetValue('RemainingTime', 0);
@@ -131,7 +131,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
 
     private function MaintainTimer(): void {
         $status = $this->GetValue('Status');
-        if ($status === 'Aktiv') { // Aktiv
+        if ($status === 'Start' || $status === 'Aktiv') { // Start
             $this->SetTimerInterval('DataCollectorTimer', 60000); // Jede Minute
             $interval = $this->ReadPropertyInteger('AnalysisInterval');
             $this->SetTimerInterval('AnalysisTimer', $interval * 60000);

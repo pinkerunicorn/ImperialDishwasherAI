@@ -46,6 +46,14 @@
                     "type": "SelectVariable",
                     "name": "PowerVariableID",
                     "caption": "Leistung (Watt) Variable (HmIP-PSM)"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "StartThreshold",
+                    "caption": "Start-Schwellwert (Watt)",
+                    "digits": 2,
+                    "minimum": 0,
+                    "maximum": 5000
                 }
             ]
         }
