@@ -52,6 +52,10 @@ class ImperialDishwasherAI extends IPSModuleStrict {
 
         $this->RegisterVariableString('LastSessionData', 'Letzte Session Data (Intern)', '', 100);
         IPS_SetHidden($this->GetIDForIdent('LastSessionData'), true);
+
+        // Vestaboard: Kurzzusammenfassung für VestaboardGenerator
+        $this->RegisterVariableString('VestaboardMessage', 'Vestaboard Nachricht', '', 101);
+        IPS_SetIcon($this->GetIDForIdent('VestaboardMessage'), 'Script');
     }
 
     public function ApplyChanges(): void {
@@ -97,6 +101,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 $this->SetValue('ExpectedEnd', 0);
                 $this->SetValue('Progress', 0);
                 $this->SetValue('SessionData', '[]');
+                $this->SetValue('VestaboardMessage', '');
                 $this->MaintainTimer();
             } else {
                 $this->SetValue('Status', $Value);
@@ -116,6 +121,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 $threshold = $this->ReadPropertyFloat('StartThreshold');
                 if ($power > $threshold && ($status === 'Aus' || $status === '' || $status === 'Fertig')) {
                     $this->SetValue('Status', 'Start'); // Start
+                    $this->SetValue('VestaboardMessage', 'Spülmaschine gestartet…');
                     $this->SetValue('ActiveSince', time());
                     $this->SetValue('CurrentPhase', 'Gestartet');
                     $this->SetValue('RemainingTime', 0);
@@ -278,12 +284,17 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                 if (is_array($parsed) && isset($parsed['phase'])) {
                     
                     $this->SetValue('CurrentPhase', $parsed['phase']);
-                    
+
                     if (isset($parsed['remainingMinutes'])) {
                         $remMin = (int)$parsed['remainingMinutes'];
                         $remSec = $remMin * 60;
                         $this->SetValue('RemainingTime', $remSec);
-                        
+
+                        // Vestaboard: Kurz-Status mit Restzeit
+                        if ($remMin > 0) {
+                            $this->SetValue('VestaboardMessage', 'Spülmaschine: ' . $parsed['phase'] . ' (~' . $remMin . ' min)');
+                        }
+
                         if ($remSec > 0) {
                             $expectedEnd = time() + $remSec;
                             $this->SetValue('ExpectedEnd', $expectedEnd);
@@ -304,6 +315,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                     if (isset($parsed['isFinished']) && $parsed['isFinished'] == true) {
                         $this->SetValue('Status', 'Fertig'); // Fertig
                         $this->SetValue('Progress', 0);
+                        $this->SetValue('VestaboardMessage', 'Spülmaschine fertig! Bitte ausräumen.');
                         
                         // Speichere die komplette Kurve für den nächsten Durchlauf
                         $currentSession = $this->GetValue('SessionData');
