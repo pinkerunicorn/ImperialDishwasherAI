@@ -226,7 +226,8 @@ class ImperialDishwasherAI extends IPSModuleStrict {
             $result = GIO_Query(' . $geminiId . ',
                 ' . var_export($userPrompt, true) . ',
                 ' . var_export($systemInstruction, true) . ',
-                ' . var_export($responseSchema, true) . '
+                ' . var_export($responseSchema, true) . ',
+                0.1
             );
             IDW_ProcessGeminiResult(' . $instanceId . ', $result);
         ';
