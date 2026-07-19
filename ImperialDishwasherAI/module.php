@@ -2,16 +2,21 @@
 
 declare(strict_types=1);
 
+/**
+ * ImperialDishwasherAI — KI-gestützte Spülmaschinen-Überwachung.
+ * Nutzt SmartGeminiIO für alle Gemini-API-Aufrufe.
+ */
 class ImperialDishwasherAI extends IPSModuleStrict {
+    /** GUID des SmartGeminiIO-Moduls zur Auto-Discovery */
+    private const GEMINI_IO_GUID = '{4C8B2A6D-9E3F-4A7B-8C5D-1F6E2A3B7C4D}';
+
     public function Create(): void {
         parent::Create();
 
         // Eigenschaften
         $this->RegisterPropertyInteger('PowerVariableID', 0);
-        $this->RegisterPropertyString('GeminiApiKey', '');
-        $this->RegisterPropertyString('GeminiModel', 'gemini-3.5-flash');
         $this->RegisterPropertyInteger('AnalysisInterval', 10); // in Minuten
-        $this->RegisterPropertyFloat('StartThreshold', 100.0); // Ab wie viel Watt das Programm als gestartet gilt
+        $this->RegisterPropertyFloat('StartThreshold', 100.0);
 
         // Variablen
         $vid = @$this->GetIDForIdent('Status');
@@ -42,7 +47,6 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->RegisterVariableInteger('Progress', 'Fortschritt', '', 8);
         IPS_SetIcon($this->GetIDForIdent('Progress'), 'Motion');
 
-
         // Timer
         $this->RegisterTimer('DataCollectorTimer', 0, 'IDW_CollectData($_IPS[\'TARGET\']);');
         $this->RegisterTimer('AnalysisTimer', 0, 'IDW_AnalyzeData($_IPS[\'TARGET\']);');
@@ -60,7 +64,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
 
     public function ApplyChanges(): void {
         parent::ApplyChanges();
-        
+
         $this->DisableAction('Status');
 
         $powerVarID = $this->ReadPropertyInteger('PowerVariableID');
@@ -68,33 +72,33 @@ class ImperialDishwasherAI extends IPSModuleStrict {
             $this->RegisterReference($powerVarID);
             $this->RegisterMessage($powerVarID, VM_UPDATE);
         }
+
         // Custom Presentation (IPS 8) für Datumsanzeige
         IPS_SetVariableCustomPresentation($this->GetIDForIdent('ActiveSince'), [
-            'PRESENTATION'=> VARIABLE_PRESENTATION_DATE_TIME,
-            'ICON'=> 'Clock'
+            'PRESENTATION' => VARIABLE_PRESENTATION_DATE_TIME,
+            'ICON'         => 'Clock'
         ]);
         IPS_SetVariableCustomPresentation($this->GetIDForIdent('ExpectedEnd'), [
-            'PRESENTATION'=> VARIABLE_PRESENTATION_DATE_TIME,
-            'ICON'=> 'Clock'
+            'PRESENTATION' => VARIABLE_PRESENTATION_DATE_TIME,
+            'ICON'         => 'Clock'
         ]);
         IPS_SetVariableCustomPresentation($this->GetIDForIdent('RemainingTime'), [
-            'PRESENTATION'=> VARIABLE_PRESENTATION_VALUE_PRESENTATION,
-            'SUFFIX'=> ' Sek'
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION,
+            'SUFFIX'       => ' Sek'
         ]);
         IPS_SetVariableCustomPresentation($this->GetIDForIdent('Progress'), [
-            'PRESENTATION'=> VARIABLE_PRESENTATION_SLIDER,
-            'SUFFIX'=> '%',
-            'MIN'=> 0,
-            'MAX'=> 100
+            'PRESENTATION' => VARIABLE_PRESENTATION_SLIDER,
+            'SUFFIX'       => '%',
+            'MIN'          => 0,
+            'MAX'          => 100
         ]);
-        
+
         $this->MaintainTimer();
     }
 
     public function RequestAction(string $Ident, $Value): void {
         if ($Ident === 'Status') {
             if ($Value === 'Aus') {
-                // Manuell auf Aus setzen, beendet den aktuellen Durchlauf
                 $this->SetValue('Status', 'Aus');
                 $this->SetValue('CurrentPhase', 'Aus');
                 $this->SetValue('RemainingTime', 0);
@@ -114,13 +118,12 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         if ($Message == VM_UPDATE) {
             $powerVarID = $this->ReadPropertyInteger('PowerVariableID');
             if ($SenderID == $powerVarID) {
-                $power = $Data[0];
-                $status = $this->GetValue('Status');
-                
-                // Wenn Strom > Threshold und Maschine war aus, starte den Vorgang
+                $power     = $Data[0];
+                $status    = $this->GetValue('Status');
                 $threshold = $this->ReadPropertyFloat('StartThreshold');
+
                 if ($power > $threshold && ($status === 'Aus' || $status === '' || $status === 'Fertig')) {
-                    $this->SetValue('Status', 'Start'); // Start
+                    $this->SetValue('Status', 'Start');
                     $this->SetValue('VestaboardMessage', 'Spülmaschine gestartet…');
                     $this->SetValue('ActiveSince', time());
                     $this->SetValue('CurrentPhase', 'Gestartet');
@@ -137,8 +140,8 @@ class ImperialDishwasherAI extends IPSModuleStrict {
 
     private function MaintainTimer(): void {
         $status = $this->GetValue('Status');
-        if ($status === 'Start' || $status === 'Aktiv') { // Start
-            $this->SetTimerInterval('DataCollectorTimer', 60000); // Jede Minute
+        if ($status === 'Start' || $status === 'Aktiv') {
+            $this->SetTimerInterval('DataCollectorTimer', 60000);
             $interval = $this->ReadPropertyInteger('AnalysisInterval');
             $this->SetTimerInterval('AnalysisTimer', $interval * 60000);
         } else {
@@ -150,187 +153,204 @@ class ImperialDishwasherAI extends IPSModuleStrict {
     public function CollectData(): void {
         $powerVarID = $this->ReadPropertyInteger('PowerVariableID');
         if ($powerVarID == 0 || !IPS_VariableExists($powerVarID)) return;
-        
+
         $power = round(GetValue($powerVarID));
-        
+
         $sessionDataStr = $this->GetValue('SessionData');
         $sessionData = json_decode($sessionDataStr, true);
         if (!is_array($sessionData)) $sessionData = [];
-        
+
         $sessionData[] = $power;
         $this->SetValue('SessionData', json_encode($sessionData));
     }
 
     public function AnalyzeData(): void {
-        $apiKey = trim($this->ReadPropertyString('GeminiApiKey'));
-        $model = trim($this->ReadPropertyString('GeminiModel'));
-        
-        if (empty($apiKey)) {
-            IPS_LogMessage('ImperialDishwasherAI', 'Kein Gemini API Key hinterlegt.');
+        // SmartGeminiIO auto-discover
+        $geminiInstances = IPS_GetInstanceListByModuleID(self::GEMINI_IO_GUID);
+        if (empty($geminiInstances)) {
+            IPS_LogMessage('ImperialDishwasherAI', 'SmartGeminiIO Instanz nicht gefunden! Bitte eine erstellen.');
             return;
         }
+        $geminiId = $geminiInstances[0];
 
         $sessionDataStr = $this->GetValue('SessionData');
-        $sessionData = json_decode($sessionDataStr, true);
-        if (!is_array($sessionData) || count($sessionData) == 0) {
-            return; // Keine Daten
-        }
+        $sessionData    = json_decode($sessionDataStr, true);
+        if (!is_array($sessionData) || count($sessionData) == 0) return;
 
-        // Wir reduzieren die Daten auf maximal 300 Punkte, um Context Limits zu schonen
+        // Maximal 300 Punkte (Context Limit)
         if (count($sessionData) > 300) {
             $sessionData = array_slice($sessionData, -300);
         }
 
         $dataString = implode(', ', $sessionData);
-        
-        $systemInstruction = "Du antwortest ausschließlich im JSON-Format.";
-        
+        $threshold  = $this->ReadPropertyFloat('StartThreshold');
+
+        $systemInstruction = 'Du antwortest ausschließlich im JSON-Format.';
+
         $userPrompt = "Du bist eine KI zur Analyse des Stromverbrauchs von Haushaltsgeräten.\n";
         $userPrompt .= "Dies ist der Stromverbrauch (in Watt) einer Imperial GSI 8265 BS Spülmaschine.\n";
-        
-        $lastSessionDataStr = $this->GetValue('LastSessionData');
-        $lastSessionData = json_decode($lastSessionDataStr, true);
-        if (is_array($lastSessionData) && count($lastSessionData) > 0) {
-            $lastDuration = count($lastSessionData);
-            $lastDataString = implode(', ', $lastSessionData);
-            $userPrompt .= "Als Referenz: Hier ist der komplette Stromverlauf (in Watt) des zuletzt durchgelaufenen Waschvorgangs (dieser dauerte insgesamt " . $lastDuration . " Minuten):\n";
-            $userPrompt .= "[" . $lastDataString . "]\n\n";
-            $userPrompt .= "Nutze diese Referenzkurve, um besser abzuschätzen, in welcher Phase sich das aktuelle Programm befindet und wie viele Minuten es noch bis zum Ende dauert, da meistens das gleiche Programm verwendet wird.\n\n";
-        }
-        
-        $userPrompt .= "Die Daten des AKTUELLEN Programms wurden im Minutentakt seit dem Start aufgezeichnet:\n";
-        $userPrompt .= "[" . $dataString . "]\n\n";
-        
-        $threshold = $this->ReadPropertyFloat('StartThreshold');
-        $userPrompt .= "WICHTIGER HINWEIS ZUM STANDBY:\n";
-        $userPrompt .= "Werte unter " . $threshold . "W (z.B. 1.25W) sind lediglich der Standby-Verbrauch der ausgeschalteten Maschine.\n";
-        $userPrompt .= "Wenn die Leistung am Ende der Kurve längere Zeit auf diesem Standby-Niveau bleibt, ist das Programm definitiv komplett durchgelaufen.\n\n";
-        
-        $userPrompt .= "Deine Aufgabe:\n";
-        $userPrompt .= "1. Analysiere die Kurve. Aufheizen benötigt typischerweise viel Strom (über 1000W), Abpumpen oder Einweichen sehr wenig (aber meist über Standby).\n";
-        $userPrompt .= "2. Bestimme die aktuelle Phase des Spülvorgangs (z.B. 'Aufheizen', 'Hauptwäsche', 'Trocknen', 'Abpumpen', 'Fertig').\n";
-        $userPrompt .= "3. Entscheide, ob das Programm komplett durchgelaufen und fertig ist (isFinished: true). Ein dauerhafter Abfall auf den Standby-Verbrauch markiert das Ende.\n";
-        $userPrompt .= "4. Schätze die verbleibende Restlaufzeit in Minuten (remainingMinutes). Wenn fertig, setze auf 0.\n";
-        $userPrompt .= "Bitte gib die Antwort als folgendes JSON-Objekt zurück:\n";
-        $userPrompt .= "{\n  \"phase\": \"Name der Phase\",\n  \"isFinished\": true/false,\n  \"remainingMinutes\": Zahl\n}";
 
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/" . $model . ":generateContent?key=" . $apiKey;
-        $responseSchema = [
-            'type' => 'OBJECT',
+        $lastSessionDataStr = $this->GetValue('LastSessionData');
+        $lastSessionData    = json_decode($lastSessionDataStr, true);
+        if (is_array($lastSessionData) && count($lastSessionData) > 0) {
+            $lastDuration   = count($lastSessionData);
+            $lastDataString = implode(', ', $lastSessionData);
+            $userPrompt .= "Als Referenz: Hier ist der komplette Stromverlauf des zuletzt durchgelaufenen Waschvorgangs (Dauer: $lastDuration Minuten):\n";
+            $userPrompt .= "[$lastDataString]\n\n";
+            $userPrompt .= "Nutze diese Referenzkurve, um besser abzuschätzen, in welcher Phase sich das aktuelle Programm befindet.\n\n";
+        }
+
+        $userPrompt .= "Daten des AKTUELLEN Programms (Minutentakt seit Start):\n[$dataString]\n\n";
+        $userPrompt .= "HINWEIS STANDBY: Werte unter {$threshold}W sind der Standby-Verbrauch (ausgeschaltete Maschine).\n";
+        $userPrompt .= "Deine Aufgabe:\n";
+        $userPrompt .= "1. Bestimme die aktuelle Phase (z.B. 'Aufheizen', 'Hauptwäsche', 'Trocknen', 'Fertig').\n";
+        $userPrompt .= "2. Entscheide ob das Programm fertig ist (isFinished: true).\n";
+        $userPrompt .= "3. Schätze die verbleibende Restlaufzeit in Minuten.\n";
+
+        $responseSchema = json_encode([
+            'type'       => 'OBJECT',
             'properties' => [
-                'phase' => [
-                    'type' => 'STRING',
-                    'description' => 'Die erkannte aktuelle Phase'
-                ],
-                'isFinished' => [
-                    'type' => 'BOOLEAN',
-                    'description' => 'True wenn der Vorgang komplett abgeschlossen ist'
-                ],
-                'remainingMinutes' => [
-                    'type' => 'INTEGER',
-                    'description' => 'Geschätzte Restlaufzeit in Minuten'
-                ]
+                'phase'            => ['type' => 'STRING',  'description' => 'Aktuelle Phase des Spülvorgangs'],
+                'isFinished'       => ['type' => 'BOOLEAN', 'description' => 'true wenn komplett fertig'],
+                'remainingMinutes' => ['type' => 'INTEGER', 'description' => 'Geschätzte Restlaufzeit in Minuten (0 wenn fertig)']
             ],
             'required' => ['phase', 'isFinished', 'remainingMinutes']
-        ];
+        ]);
 
-        $payload = [
-            'system_instruction' => [
-                'parts' => [
-                    ['text' => $systemInstruction]
-                ]
-            ],
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        ['text' => $userPrompt]
-                    ]
-                ]
-            ],
-            'generationConfig' => [
-                'temperature' => 0.1,
-                'responseMimeType' => 'application/json',
-                'responseSchema' => $responseSchema
-            ]
-        ];
-
-        $jsonPayload = json_encode($payload);
         $this->SetValue('LastGeminiPrompt', $userPrompt);
 
+        $instanceId = $this->InstanceID;
+
+        // Async via IPS_RunScriptText — GIO_Query blockiert, daher in Background
         $script = '<?php
-            $ch = curl_init("' . $url . '");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, ' . var_export($jsonPayload, true) . ');
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-            $result = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            
-            IDW_ProcessGeminiResponse(' . $this->InstanceID . ', $result, $httpCode);
+            $result = GIO_Query(' . $geminiId . ',
+                ' . var_export($userPrompt, true) . ',
+                ' . var_export($systemInstruction, true) . ',
+                ' . var_export($responseSchema, true) . '
+            );
+            IDW_ProcessGeminiResult(' . $instanceId . ', $result);
         ';
         IPS_RunScriptText($script);
     }
 
-    public function ProcessGeminiResponse(string $result, int $httpCode): void {
-        $this->SetValue('LastGeminiResponse', $result);
-        if ($httpCode === 200 && $result) {
-            $data = json_decode($result, true);
-            if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
-                $jsonText = $data['candidates'][0]['content']['parts'][0]['text'];
-                $parsed = json_decode($jsonText, true);
-                if (is_array($parsed) && isset($parsed['phase'])) {
-                    
-                    $this->SetValue('CurrentPhase', $parsed['phase']);
+    /**
+     * Verarbeitet das Ergebnis der Gemini-Analyse.
+     * Wird aus dem Background-Script via IPS_RunScriptText aufgerufen.
+     *
+     * @param string $jsonText Bereits extrahierter JSON-Text von GIO_Query
+     */
+    public function ProcessGeminiResult(string $jsonText): void {
+        $this->SetValue('LastGeminiResponse', $jsonText);
 
-                    if (isset($parsed['remainingMinutes'])) {
-                        $remMin = (int)$parsed['remainingMinutes'];
-                        $remSec = $remMin * 60;
-                        $this->SetValue('RemainingTime', $remSec);
+        if (empty($jsonText)) {
+            IPS_LogMessage('ImperialDishwasherAI', 'Gemini-Analyse fehlgeschlagen (leere Antwort von SmartGeminiIO).');
+            return;
+        }
 
-                        // Vestaboard: Kurz-Status mit Restzeit
-                        if ($remMin > 0) {
-                            $this->SetValue('VestaboardMessage', 'Spülmaschine: ' . $parsed['phase'] . ' (~' . $remMin . ' min)');
-                        }
+        $parsed = json_decode($jsonText, true);
+        if (!is_array($parsed) || !isset($parsed['phase'])) {
+            IPS_LogMessage('ImperialDishwasherAI', 'Gemini-Antwort konnte nicht geparst werden: ' . $jsonText);
+            return;
+        }
 
-                        if ($remSec > 0) {
-                            $expectedEnd = time() + $remSec;
-                            $this->SetValue('ExpectedEnd', $expectedEnd);
-                            
-                            $activeSince = $this->GetValue('ActiveSince');
-                            $total = $expectedEnd - $activeSince;
-                            if ($total > 0) {
-                                $progress = (int)(((time() - $activeSince) / $total) * 100);
-                                $progress = min(100, max(0, $progress));
-                                $this->SetValue('Progress', $progress);
-                            }
-                        } else {
-                            $this->SetValue('Progress', 100);
-                            $this->SetValue('ExpectedEnd', time());
-                        }
-                    }
-                    
-                    if (isset($parsed['isFinished']) && $parsed['isFinished'] == true) {
-                        $this->SetValue('Status', 'Fertig'); // Fertig
-                        $this->SetValue('Progress', 0);
-                        $this->SetValue('VestaboardMessage', 'Spülmaschine fertig! Bitte ausräumen.');
-                        
-                        // Speichere die komplette Kurve für den nächsten Durchlauf
-                        $currentSession = $this->GetValue('SessionData');
-                        $this->SetValue('LastSessionData', $currentSession);
-                        
-                        $this->MaintainTimer();
-                        IPS_LogMessage('ImperialDishwasherAI', 'Gemini meldet: Spülmaschine ist fertig.');
-                    } else {
-                        IPS_LogMessage('ImperialDishwasherAI', 'Gemini Phase: ' . $parsed['phase']);
-                    }
-                    return;
+        $this->SetValue('CurrentPhase', $parsed['phase']);
+
+        if (isset($parsed['remainingMinutes'])) {
+            $remMin = (int)$parsed['remainingMinutes'];
+            $remSec = $remMin * 60;
+            $this->SetValue('RemainingTime', $remSec);
+
+            // Vestaboard: Kurz-Status mit Restzeit
+            if ($remMin > 0) {
+                $this->SetValue('VestaboardMessage', 'Spülmaschine: ' . $parsed['phase'] . ' (~' . $remMin . ' min)');
+            }
+
+            if ($remSec > 0) {
+                $expectedEnd = time() + $remSec;
+                $this->SetValue('ExpectedEnd', $expectedEnd);
+
+                $activeSince = $this->GetValue('ActiveSince');
+                $total       = $expectedEnd - $activeSince;
+                if ($total > 0) {
+                    $progress = (int)(((time() - $activeSince) / $total) * 100);
+                    $this->SetValue('Progress', min(100, max(0, $progress)));
                 }
+            } else {
+                $this->SetValue('Progress', 100);
+                $this->SetValue('ExpectedEnd', time());
             }
         }
-        
-        IPS_LogMessage('ImperialDishwasherAI', 'Fehler bei der Gemini-Analyse. HTTP Code: ' . $httpCode);
+
+        if (isset($parsed['isFinished']) && $parsed['isFinished'] == true) {
+            $this->SetValue('Status', 'Fertig');
+            $this->SetValue('Progress', 0);
+            $this->SetValue('VestaboardMessage', 'Spülmaschine fertig! Bitte ausräumen.');
+
+            // Komplette Kurve für nächsten Durchlauf speichern
+            $this->SetValue('LastSessionData', $this->GetValue('SessionData'));
+            $this->MaintainTimer();
+            IPS_LogMessage('ImperialDishwasherAI', 'Gemini meldet: Spülmaschine ist fertig.');
+        } else {
+            IPS_LogMessage('ImperialDishwasherAI', 'Gemini Phase: ' . $parsed['phase']);
+        }
+    }
+
+    protected function LogMessage(string $Message, int $Type): bool
+    {
+        IPS_LogMessage('SmartVillaKunterbunt', 'ImperialDishwasherAI: ' . $Message);
+        return true;
+    }
+
+    public function GetConfigurationForm(): string
+    {
+        return <<<'EOT'
+{
+    "elements": [
+        {
+            "type": "Label",
+            "caption": "ImperialDishwasherAI — KI-gestützte Spülmaschinen-Überwachung\n\nDer API-Key wird zentral über die SmartGeminiIO Instanz konfiguriert.\nBitte zuerst eine SmartGeminiIO Instanz erstellen und dort den API-Key eintragen."
+        },
+        {
+            "type": "SelectVariable",
+            "name": "PowerVariableID",
+            "caption": "Leistungsmessung Spülmaschine (Watt)"
+        },
+        {
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "NumberSpinner",
+                    "name": "StartThreshold",
+                    "caption": "Einschaltschwelle (Watt)",
+                    "digits": 1
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "AnalysisInterval",
+                    "caption": "KI-Analyse Intervall (Minuten)",
+                    "minimum": 5,
+                    "maximum": 60
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "label": "📊 Jetzt analysieren",
+            "onClick": "IDW_AnalyzeData($id);"
+        },
+        {
+            "type": "Button",
+            "label": "📋 Daten sammeln",
+            "onClick": "IDW_CollectData($id);"
+        }
+    ],
+    "status": [
+        {"code": 102, "icon": "active",   "caption": "Überwachung aktiv."},
+        {"code": 104, "icon": "inactive", "caption": "Inaktiv."}
+    ]
+}
+EOT;
     }
 }
