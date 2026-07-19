@@ -131,7 +131,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
                     $this->SetValue('ExpectedEnd', 0);
                     $this->SetValue('Progress', 0);
                     $this->SetValue('SessionData', '[]');
-                    IPS_LogMessage('ImperialDishwasherAI', 'Spülmaschine hat gestartet.');
+                    $this->SLog('INFO', 'Spülmaschine hat gestartet.');
                     $this->MaintainTimer();
                 }
             }
@@ -168,7 +168,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         // SmartGeminiIO auto-discover
         $geminiInstances = IPS_GetInstanceListByModuleID(self::GEMINI_IO_GUID);
         if (empty($geminiInstances)) {
-            IPS_LogMessage('ImperialDishwasherAI', 'SmartGeminiIO Instanz nicht gefunden! Bitte eine erstellen.');
+            $this->SLog('ERROR', 'SmartGeminiIO Instanz nicht gefunden! Bitte eine erstellen.');
             return;
         }
         $geminiId = $geminiInstances[0];
@@ -244,13 +244,13 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         $this->SetValue('LastGeminiResponse', $jsonText);
 
         if (empty($jsonText)) {
-            IPS_LogMessage('ImperialDishwasherAI', 'Gemini-Analyse fehlgeschlagen (leere Antwort von SmartGeminiIO).');
+            $this->SLog('ERROR', 'Gemini-Analyse fehlgeschlagen (leere Antwort von SmartGeminiIO).');
             return;
         }
 
         $parsed = json_decode($jsonText, true);
         if (!is_array($parsed) || !isset($parsed['phase'])) {
-            IPS_LogMessage('ImperialDishwasherAI', 'Gemini-Antwort konnte nicht geparst werden: ' . $jsonText);
+            $this->SLog('ERROR', 'Gemini-Antwort konnte nicht geparst werden', $jsonText);
             return;
         }
 
@@ -290,14 +290,26 @@ class ImperialDishwasherAI extends IPSModuleStrict {
             // Komplette Kurve für nächsten Durchlauf speichern
             $this->SetValue('LastSessionData', $this->GetValue('SessionData'));
             $this->MaintainTimer();
-            IPS_LogMessage('ImperialDishwasherAI', 'Gemini meldet: Spülmaschine ist fertig.');
+            $this->SLog('INFO', 'Gemini meldet: Spülmaschine ist fertig.');
         } else {
-            IPS_LogMessage('ImperialDishwasherAI', 'Gemini Phase: ' . $parsed['phase']);
+            $this->SLog('INFO', 'Gemini Phase: ' . $parsed['phase']);
+        }
+    }
+
+    private function SLog(string $level, string $message, string $details = ''): void
+    {
+        $source = static::class;
+        $slogInstances = @IPS_GetInstanceListByModuleID('{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}');
+        if (is_array($slogInstances) && count($slogInstances) > 0) {
+            @SLOG_Log($slogInstances[0], $level, $source, $message, $details);
+        } else {
+            IPS_LogMessage('SmartVillaKunterbunt', $source . ': ' . $message);
         }
     }
 
     protected function LogMessage(string $Message, int $Type): bool
     {
+        $this->SLog('INFO', $Message);
         IPS_LogMessage('SmartVillaKunterbunt', 'ImperialDishwasherAI: ' . $Message);
         return true;
     }
