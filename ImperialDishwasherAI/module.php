@@ -10,6 +10,9 @@ class ImperialDishwasherAI extends IPSModuleStrict {
     /** GUID des SmartGeminiIO-Moduls zur Auto-Discovery */
     private const GEMINI_IO_GUID = '{4C8B2A6D-9E3F-4A7B-8C5D-1F6E2A3B7C4D}';
 
+    private const MAX_CONTEXT_POINTS = 300;
+    private const MS_PER_MINUTE = 60000;
+
     public function Create(): void {
         parent::Create();
 
@@ -141,9 +144,9 @@ class ImperialDishwasherAI extends IPSModuleStrict {
     private function MaintainTimer(): void {
         $status = $this->GetValue('Status');
         if ($status === 'Start' || $status === 'Aktiv') {
-            $this->SetTimerInterval('DataCollectorTimer', 60000);
+            $this->SetTimerInterval('DataCollectorTimer', self::MS_PER_MINUTE);
             $interval = $this->ReadPropertyInteger('AnalysisInterval');
-            $this->SetTimerInterval('AnalysisTimer', $interval * 60000);
+            $this->SetTimerInterval('AnalysisTimer', $interval * self::MS_PER_MINUTE);
         } else {
             $this->SetTimerInterval('DataCollectorTimer', 0);
             $this->SetTimerInterval('AnalysisTimer', 0);
@@ -178,8 +181,8 @@ class ImperialDishwasherAI extends IPSModuleStrict {
         if (!is_array($sessionData) || count($sessionData) == 0) return;
 
         // Maximal 300 Punkte (Context Limit)
-        if (count($sessionData) > 300) {
-            $sessionData = array_slice($sessionData, -300);
+        if (count($sessionData) > self::MAX_CONTEXT_POINTS) {
+            $sessionData = array_slice($sessionData, -self::MAX_CONTEXT_POINTS);
         }
 
         $dataString = implode(', ', $sessionData);
@@ -250,7 +253,7 @@ class ImperialDishwasherAI extends IPSModuleStrict {
 
         $parsed = json_decode($jsonText, true);
         if (!is_array($parsed) || !isset($parsed['phase'])) {
-            $this->SLog('ERROR', 'Gemini-Antwort konnte nicht geparst werden', $jsonText);
+            $this->SLog('ERROR', 'Gemini-Antwort konnte nicht geparst werden', 'JSON Error: ' . json_last_error_msg() . ' | Response: ' . $jsonText);
             return;
         }
 
